@@ -1,0 +1,31 @@
+{
+  "name": "remix-snippet-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "svelte-kit sync && vite dev",
+    "build": "svelte-kit sync && vite build",
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "@sveltejs/kit": "^2.5.10",
+    "svelte": "^5.0.0-next.240",
+    "@walletconnect/ethereum-provider": "^2.11.0",
+    "ethers": "^6.13.4",
+    "ipfs-http-client": "^60.0.0",
+    "multiformats": "^13.3.1",
+    "clsx": "^2.1.1"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "^3.2.2",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0",
+    "svelte-check": "^4.0.0",
+    "typescript": "~5.5.4",
+    "tailwindcss": "^3.4.7",
+    "postcss": "^8.4.41",
+    "autoprefixer": "^10.4.20",
+    "vite": "^5.4.2"
+  }
+}
