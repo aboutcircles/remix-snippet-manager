@@ -27,7 +27,7 @@ export const EMPTY_PROFILE: Profile = {
   schemaVersion: '1.2',
   name: null,
   description: null,
-  previewImageUrl: null,
+  previewPictureUrl: null,
   imageUrl: null,
   namespaces: {},
   signingKeys: {}
@@ -37,6 +37,40 @@ export const EMPTY_INDEX: NamespaceIndex = { head: null, entries: {} };
 export const EMPTY_CHUNK: NamespaceChunk = { prev: null, links: [] };
 
 export const OPERATOR_NAMESPACE: Address = '0x1111111111111111111111111111111111111111';
+
+type ProfilePatch = Partial<Pick<Profile, 'name'|'description'|'previewPictureUrl'>>;
+
+function applyPatchImmutable<T extends object>(base: T, patch: Partial<T>): T {
+  const out: any = { ...base };
+  for (const k of Object.keys(patch) as (keyof T)[]) {
+    out[k] = patch[k];
+  }
+  return out as T;
+}
+
+function normalizeProfile(input: any): Profile {
+  const p: any = (input && typeof input === 'object') ? { ...input } : {};
+  // Legacy alias: previewImageUrl -> previewPictureUrl
+  if (p.previewPictureUrl == null && typeof p.previewImageUrl === 'string') {
+    p.previewPictureUrl = p.previewImageUrl;
+  }
+  // Ensure container objects
+  if (p.namespaces == null || typeof p.namespaces !== 'object') p.namespaces = {};
+  if (p.signingKeys == null || typeof p.signingKeys !== 'object') p.signingKeys = {};
+  // Schema version default
+  if (typeof p.schemaVersion !== 'string') p.schemaVersion = '1.2';
+
+  const out: Profile = {
+    schemaVersion: p.schemaVersion,
+    name: p.name ?? null,
+    description: p.description ?? null,
+    previewPictureUrl: p.previewPictureUrl ?? null,
+    imageUrl: p.imageUrl ?? null,
+    namespaces: p.namespaces,
+    signingKeys: p.signingKeys
+  };
+  return out;
+}
 
 export class ProfileService {
   constructor(private readonly env: Env) {}
@@ -60,7 +94,8 @@ export class ProfileService {
       const cid = digest32ToCidV0(digest as `0x${string}`) as CidV0;
       profileCid = cid;
       try {
-        profile = await this.env.ipfs.catJson<Profile>(profileCid);
+        const raw = await this.env.ipfs.catJson<any>(profileCid);
+        profile = normalizeProfile(raw);
       } catch (e) {
         // Surface a clear error; UI should offer to create a new profile
         const err = new Error(`PROFILE_FETCH_FAILED: Cannot fetch profile CID ${profileCid} from IPFS`);
@@ -70,7 +105,8 @@ export class ProfileService {
       }
     }
 
-    if (profile.namespaces[namespaceKey]) {
+    const nsCidCandidate = (profile as any).namespaces ? profile.namespaces[namespaceKey] ?? null : null;
+    if (nsCidCandidate) {
       indexCid = profile.namespaces[namespaceKey];
       try {
         index = await this.env.ipfs.catJson<NamespaceIndex>(indexCid);
@@ -269,5 +305,27 @@ export class ProfileService {
     await this.env.registry.updateMetadataDigest(digest32);
 
     return { ...state, head, index, profile, headCid, indexCid, profileCid };
+  }
+
+  /**
+   * Partially update profile metadata.
+   * - Only keys present in 'patch' are changed
+   * - All other top-level keys (namespaces, signingKeys, unknowns) are preserved
+   * - Updates NameRegistry digest after pinning the merged profile JSON
+   */
+  async updateProfileMetadata(state: ProfileState, patch: ProfilePatch): Promise<ProfileState> {
+    const mergedRaw: Profile = applyPatchImmutable(state.profile, patch);
+    const merged = normalizeProfile(mergedRaw);
+
+    // If creating a new profile document, name is required
+    if (!merged.name || !merged.name.toString().trim()) {
+      throw new Error('PROFILE_VALIDATION_FAILED: "name" is required');
+    }
+
+    const profileCid = await this.env.ipfs.addJson(merged);
+    const digest32 = cidV0ToDigest32(profileCid);
+    await this.env.registry.updateMetadataDigest(digest32);
+
+    return { ...state, profile: merged, profileCid };
   }
 }

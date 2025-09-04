@@ -5,10 +5,14 @@ export type CidV0 = string; // base58btc Qm...
 
 export interface Profile {
   schemaVersion: '1.2';
-  previewImageUrl?: string | null;
-  imageUrl?: string | null;
+
+  // regular fields we edit
   name?: string | null;
   description?: string | null;
+  previewPictureUrl?: string | null;
+
+  // existing keys
+  imageUrl?: string | null;
   namespaces: Record<Address, CidV0>;
   signingKeys: Record<string, unknown>;
 }
